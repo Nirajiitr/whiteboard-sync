@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { Server } from 'socket.io';
 import { createServer } from 'http';
+import job from './lib/cron.js';
 
 const app = express();
 const server = createServer(app);
@@ -9,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-
+job.start();
 const io = new Server(server, {
   cors: {
     origin: "*",

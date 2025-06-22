@@ -1,5 +1,5 @@
 import React from 'react'
-import Whiteboard from './components/whiteboard/Whiteboard'
+import Whiteboard from './components/Whiteboard/Whiteboard'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Homepage from './Homepage'
 
