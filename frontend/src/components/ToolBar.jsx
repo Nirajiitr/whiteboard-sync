@@ -10,19 +10,21 @@ import {
   Square,
   ArrowRight,
 } from "lucide-react";
+import Chat from "./Chat";
 
 const ToolBar = ({
   color,
   setColor,
   penSize,
   setPenSize,
-
+  roomId,
   setIsEraser,
   tool,
   setTool,
   onClearCanvas,
   onExportCanvas,
   connectedUsers,
+  initialRoomId,
 }) => {
   const tools = [
     { id: "pen", icon: Pencil, label: "Pen" },
@@ -45,6 +47,7 @@ const ToolBar = ({
     "#FFC0CB",
   ];
   const colorInputRef = useRef(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const handleClick = () => {
     colorInputRef.current.click();
@@ -55,9 +58,8 @@ const ToolBar = ({
   };
 
   return (
-    <div className="bg-blue-100 rounded-xl shadow-lg p-4 inset-x-0 fixed top-0 z-50">
+    <div className="bg-blue-100 rounded-xl shadow-lg p-4 relative  ">
       <div className="flex items-center gap-2 lg:gap-4  flex-wrap">
-        
         <div className="flex items-center gap-2 ">
           <div className="grid grid-cols-5 xl:grid-cols-10 gap-1 p-3 bg-gray-50 rounded-full ">
             {presetColors.map((presetColor) => (
@@ -84,7 +86,6 @@ const ToolBar = ({
             title="Click to pick color"
           ></div>
 
-         
           <input
             ref={colorInputRef}
             type="color"
@@ -112,7 +113,6 @@ const ToolBar = ({
             </button>
           ))}
         </div>
-
 
         <div className="flex flex-col items-center sm:flex-row  gap-3 p-2 bg-gray-50 rounded-xl flex-wrap sm:flex-nowrap">
           <div className="flex items-center gap-2">
@@ -148,19 +148,25 @@ const ToolBar = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 xl:ml-auto">
-          <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg">
-            <Users size={16} className="text-green-600" />
-            <span className="text-sm font-medium text-green-700">
-              {connectedUsers} online
-            </span>
+        {!initialRoomId && (
+          <div className="flex items-center gap-2 xl:ml-auto">
+            <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg">
+              <Users size={16} className="text-green-600" />
+              <span className="text-sm font-medium text-green-700">
+                {connectedUsers} online
+              </span>
+            </div>
+            <div
+              onClick={() => setIsChatOpen(!isChatOpen)}
+              className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg"
+            >
+              <MessageCircle size={16} className="text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">Chat</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-            <MessageCircle size={16} className="text-gray-600" />
-            <span className="text-sm font-medium text-gray-700">Chat</span>
-          </div>
-        </div>
+        )}
       </div>
+      {isChatOpen && <Chat setIsChatOpen={setIsChatOpen} roomId={roomId} />}
     </div>
   );
 };

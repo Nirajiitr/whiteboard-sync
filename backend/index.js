@@ -27,11 +27,15 @@ const emitUserCount = (roomId) => {
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  socket.on("joinRoom", (roomId) => {
+  socket.on("joinRoom", (roomId, callback) => {
+  try {
     socket.join(roomId);
-    console.log(`${socket.id} joined room ${roomId}`);
+    callback({ success: true });
     emitUserCount(roomId);
-  });
+  } catch (err) {
+    callback({ success: false, message: err.message });
+  }
+});
 
   socket.on("leaveRoom", (roomId) => {
     socket.leave(roomId);
@@ -65,8 +69,20 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
   });
+  socket.on("chatMessage", (msg ) => {
+    const roomId = msg.roomId;
+    if (!roomId) return;
+  
+    socket.to(roomId).emit("chatMessage", {
+      userId: socket.id,
+      text: msg.text,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
 });
 
+ 
 app.get("/", (req, res) => {
   res.send("Hello, world!");
 });
