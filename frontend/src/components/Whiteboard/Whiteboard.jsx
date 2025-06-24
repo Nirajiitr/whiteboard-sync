@@ -27,10 +27,11 @@ const Whiteboard = () => {
     isIndividualMode,
     setRoomData,
     connectedUsers,
+  
   } = useWhiteboard(canvasRef, overlayCanvasRef);
   return (
     <div className=" relative w-full h-full bg-gradient-to-br from-blue-50 to-indigo-100 pb-4">
-      {!(joined ) ? (
+      {!joined ? (
         <JoinRoom  onJoin={setRoomData} />
       ) : (
         <>

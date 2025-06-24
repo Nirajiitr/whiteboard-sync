@@ -2,6 +2,7 @@ import React from 'react'
 import Whiteboard from './components/Whiteboard/Whiteboard'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Homepage from './Homepage'
+import { Toaster } from 'react-hot-toast';
 
 const App = () => {
   return (
@@ -13,7 +14,9 @@ const App = () => {
           <Route path='/' element={<Homepage/>} />
           <Route path='/whiteboard' element={<Whiteboard />} />
         </Routes>
+
       </BrowserRouter>
+      <Toaster />
     </div>
   )
 }

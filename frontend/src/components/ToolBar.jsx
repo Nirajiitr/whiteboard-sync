@@ -9,6 +9,7 @@ import {
   Circle,
   Square,
   ArrowRight,
+  Clipboard
 } from "lucide-react";
 import Chat from "./Chat";
 
@@ -149,6 +150,13 @@ const ToolBar = ({
         </div>
 
         {!isIndividualMode && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg">
+            <Clipboard size={16} className="text-green-600" />
+            <span className="text-sm font-medium text-green-700">{roomId}</span>
+          </div>
+        )}
+
+        {!isIndividualMode && (
           <div className="flex items-center gap-2 xl:ml-auto">
             <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg">
               <Users size={16} className="text-green-600" />
@@ -166,7 +174,7 @@ const ToolBar = ({
           </div>
         )}
       </div>
-      {isChatOpen && <Chat setIsChatOpen={setIsChatOpen} roomId={roomId} />}
+      {isChatOpen && <Chat setIsChatOpen={setIsChatOpen} roomId={roomId} isChatOpen={isChatOpen} />}
     </div>
   );
 };

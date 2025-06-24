@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import socket from "../../socket";
 import { drawLine, drawShape } from "./drawingUtils";
-
+import toast from "react-hot-toast";
 const useWhiteboard = (canvasRef, overlayCanvasRef) => {
   const [color, setColor] = useState("#000000");
   const [penSize, setPenSize] = useState(3);
@@ -9,12 +9,17 @@ const useWhiteboard = (canvasRef, overlayCanvasRef) => {
   const [tool, setTool] = useState("pen");
   const [isDrawing, setIsDrawing] = useState(false);
   const [prevPoint, setPrevPoint] = useState(null);
-  const [roomData, setRoomData] = useState(null);
+  const [roomData, setRoomData] = useState( null);
   const [joined, setJoined] = useState(false);
   const [connectedUsers, setConnectedUsers] = useState(1);
   const [startPoint, setStartPoint] = useState(null);
-  const [userList, setUserList] = useState([]);
 
+  useEffect(() => {
+    const roomData = localStorage.getItem("roomData")
+      ? JSON.parse(localStorage.getItem("roomData")):null;
+    setRoomData(roomData)
+    console.log(roomData)
+  },[ ])
   const param = new URLSearchParams(window.location.search);
   const initialRoomId = param.get("Id") || null;
   const isIndividualMode = initialRoomId?.startsWith("solo-");
@@ -62,21 +67,32 @@ const useWhiteboard = (canvasRef, overlayCanvasRef) => {
 
     if (type === "create") {
       socket.emit("createRoom", payload, (res) => {
-        setJoined(res.success);
+        if (res.success) {
+          setJoined(res.success);
+          localStorage.setItem("roomData", JSON.stringify(res.roomData));
+          toast.success("Room created successfully");
+        } else {
+          toast.error(res.message || "Failed to create room");
+        }
       });
     } else if (type === "join") {
       socket.emit("joinRoom", payload, (res) => {
-        setJoined(res.success);
+        if (res.success) {
+          setJoined(res.success);
+          localStorage.setItem("roomData",  JSON.stringify(res.roomData));
+          toast.success("Joined room successfully");
+        } else {
+          toast.error(res.message || "Failed to join room");
+        }
       });
     }
 
     socket.on("userCount", (data) => setConnectedUsers(data.count));
-    socket.on("userList", (users) => setUserList(users));
 
     return () => {
       socket.emit("leaveRoom", payload.roomId);
       socket.off("userCount");
-      socket.off("userList");
+
       setJoined(false);
     };
   }, [roomData, isIndividualMode]);
@@ -121,7 +137,9 @@ const useWhiteboard = (canvasRef, overlayCanvasRef) => {
       const ctx = canvasRef.current?.getContext("2d");
       if (!ctx) return;
       ctx.save();
-      ctx.globalCompositeOperation = isEraser ? "destination-out" : "source-over";
+      ctx.globalCompositeOperation = isEraser
+        ? "destination-out"
+        : "source-over";
       ctx.strokeStyle = color;
       ctx.lineWidth = isEraser ? penSize * 2 : penSize;
       ctx.beginPath();
@@ -260,7 +278,6 @@ const useWhiteboard = (canvasRef, overlayCanvasRef) => {
     joined,
     setRoomData,
     connectedUsers,
-    userList,
   };
 };
 
