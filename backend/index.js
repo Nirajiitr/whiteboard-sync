@@ -105,25 +105,32 @@ class RoomManager {
     const room = this.rooms.get(roomId);
     if (!room) return;
 
-    if (room.drawingHistory.length > 1000) {
-      room.drawingHistory = room.drawingHistory.slice(500);
+    if (room.drawingHistory.length > 2000) {
+      room.drawingHistory = room.drawingHistory.slice(1000);
     }
 
-    room.drawingHistory.push({
+    const historyCommand = {
       ...command,
       timestamp: Date.now(),
-    });
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
+    };
+
+    room.drawingHistory.push(historyCommand);
+    room.lastActivity = Date.now();
+    
+    return historyCommand;
   }
 
   getDrawingHistory(roomId) {
     const room = this.rooms.get(roomId);
-    return room ? room.drawingHistory : [];
+    return room ? [...room.drawingHistory] : []; 
   }
 
   clearDrawingHistory(roomId) {
     const room = this.rooms.get(roomId);
     if (room) {
       room.drawingHistory = [];
+      room.lastActivity = Date.now();
     }
   }
 
@@ -135,6 +142,10 @@ class RoomManager {
         (room) => room.users.size > 0
       ).length,
     };
+  }
+
+  getRoom(roomId) {
+    return this.rooms.get(roomId);
   }
 }
 
@@ -177,6 +188,34 @@ const validateRoomConfig = (config) => {
   if (maxUsers && (maxUsers < 1 || maxUsers > 100)) {
     throw new Error("Max users must be between 1 and 100");
   }
+};
+
+const validateDrawingData = (data) => {
+  if (!data || typeof data !== 'object') return false;
+  
+  if (data.from && data.to) {
+    return (
+      typeof data.from.x === 'number' && 
+      typeof data.from.y === 'number' &&
+      typeof data.to.x === 'number' && 
+      typeof data.to.y === 'number' &&
+      !isNaN(data.from.x) && !isNaN(data.from.y) &&
+      !isNaN(data.to.x) && !isNaN(data.to.y)
+    );
+  }
+  
+  if (data.start && data.end) {
+    return (
+      typeof data.start.x === 'number' && 
+      typeof data.start.y === 'number' &&
+      typeof data.end.x === 'number' && 
+      typeof data.end.y === 'number' &&
+      !isNaN(data.start.x) && !isNaN(data.start.y) &&
+      !isNaN(data.end.x) && !isNaN(data.end.y)
+    );
+  }
+  
+  return false;
 };
 
 io.on("connection", (socket) => {
@@ -230,6 +269,7 @@ io.on("connection", (socket) => {
         drawingHistory: [],
       });
     } catch (error) {
+      console.error("❌ Create room error:", error.message);
       callback({ success: false, message: error.message });
     }
   });
@@ -269,10 +309,11 @@ io.on("connection", (socket) => {
         drawingHistory,
       });
     } catch (error) {
+      console.error("❌ Join room error:", error.message);
       callback({ success: false, message: error.message });
     }
   });
-  // rejoin room for all admin and user
+
   socket.on("rejoinRoom", async (roomData, callback) => {
     try {
       const { roomId, userName } = roomData;
@@ -281,7 +322,7 @@ io.on("connection", (socket) => {
         throw new Error("Room ID and user name are required for rejoining.");
       }
 
-      const room = roomManager.rooms.get(roomId);
+      const room = roomManager.getRoom(roomId);
       if (!room) {
         throw new Error("Room not found or expired.");
       }
@@ -311,7 +352,7 @@ io.on("connection", (socket) => {
         drawingHistory,
       });
 
-      console.log(`🔁 ${userName} rejoined room ${roomId}`);
+      console.log(`🔁 ${userName} (${socket.id}) rejoined room ${roomId}`);
     } catch (error) {
       console.error("❌ Rejoin error:", error.message);
       callback({ success: false, message: error.message });
@@ -332,32 +373,89 @@ io.on("connection", (socket) => {
   });
 
   socket.on("drawing", (data) => {
-    if (!data.roomId) return;
+    if (!data.roomId || !validateDrawingData(data)) {
+      console.warn("❌ Invalid drawing data received:", data);
+      return;
+    }
 
-    roomManager.addDrawingCommand(data.roomId, {
+    const userRoomId = roomManager.userSockets.get(socket.id);
+    if (userRoomId !== data.roomId) {
+      console.warn("❌ User not in specified room for drawing:", socket.id, data.roomId);
+      return;
+    }
+
+    const historyCommand = roomManager.addDrawingCommand(data.roomId, {
       type: "drawing",
-      ...data,
+      from: data.from,
+      to: data.to,
+      color: data.color || "#000000",
+      penSize: data.penSize || 3,
+      isEraser: data.isEraser || false,
     });
 
-    socket.to(data.roomId).emit("drawing", data);
+    socket.to(data.roomId).emit("drawing", {
+      ...data,
+      commandId: historyCommand.id, 
+    });
   });
 
   socket.on("shape", (data) => {
-    if (!data.roomId) return;
+    if (!data.roomId || !validateDrawingData(data)) {
+      console.warn("❌ Invalid shape data received:", data);
+      return;
+    }
 
-    roomManager.addDrawingCommand(data.roomId, {
+    const userRoomId = roomManager.userSockets.get(socket.id);
+    if (userRoomId !== data.roomId) {
+      console.warn("❌ User not in specified room for shape:", socket.id, data.roomId);
+      return;
+    }
+
+    const historyCommand = roomManager.addDrawingCommand(data.roomId, {
       type: "shape",
-      ...data,
+      start: data.start,
+      end: data.end,
+      color: data.color || "#000000",
+      penSize: data.penSize || 3,
+      tool: data.tool || "rectangle",
     });
 
-    socket.to(data.roomId).emit("shape", data);
+    socket.to(data.roomId).emit("shape", {
+      ...data,
+      commandId: historyCommand.id,
+    });
   });
 
   socket.on("clear", (roomId) => {
     if (!roomId) return;
 
+    const userRoomId = roomManager.userSockets.get(socket.id);
+    if (userRoomId !== roomId) {
+      console.warn("❌ User not in specified room for clear:", socket.id, roomId);
+      return;
+    }
+
     roomManager.clearDrawingHistory(roomId);
-    socket.to(roomId).emit("clear");
+    
+    io.to(roomId).emit("clear");
+    
+    console.log(`🧹 Canvas cleared in room ${roomId} by ${socket.id}`);
+  });
+
+  socket.on("requestDrawingHistory", (roomId, callback) => {
+    if (!roomId) {
+      callback({ success: false, message: "Room ID required" });
+      return;
+    }
+
+    const userRoomId = roomManager.userSockets.get(socket.id);
+    if (userRoomId !== roomId) {
+      callback({ success: false, message: "Not authorized for this room" });
+      return;
+    }
+
+    const drawingHistory = roomManager.getDrawingHistory(roomId);
+    callback({ success: true, drawingHistory });
   });
 
   socket.on("chatMessage", async (msg) => {
@@ -457,6 +555,22 @@ app.get("/api/rooms/:roomId/info", (req, res) => {
     maxUsers: room.maxUsers,
     createdAt: room.createdAt,
     lastActivity: new Date(room.lastActivity).toISOString(),
+    drawingHistorySize: room.drawingHistory.length,
+  });
+});
+
+app.get("/api/rooms/:roomId/drawing-history", (req, res) => {
+  const { roomId } = req.params;
+  const room = roomManager.rooms.get(roomId);
+
+  if (!room) {
+    return res.status(404).json({ error: "Room not found" });
+  }
+
+  res.json({
+    roomId,
+    drawingHistory: room.drawingHistory,
+    totalCommands: room.drawingHistory.length,
   });
 });
 
