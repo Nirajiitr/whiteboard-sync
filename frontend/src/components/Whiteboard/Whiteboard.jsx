@@ -24,34 +24,40 @@ const Whiteboard = () => {
     exportCanvas,
     joined,
     roomId,
-    initialRoomId,
+    isIndividualMode,
+    setRoomData,
     connectedUsers,
   } = useWhiteboard(canvasRef, overlayCanvasRef);
-
   return (
     <div className=" relative w-full h-full bg-gradient-to-br from-blue-50 to-indigo-100 pb-4">
-      <ToolBar
-        color={color}
-        setColor={setColor}
-        penSize={penSize}
-        setPenSize={setPenSize}
-        isEraser={isEraser}
-        setIsEraser={setIsEraser}
-        tool={tool}
-        setTool={setTool}
-        onClearCanvas={clearCanvas}
-        onExportCanvas={exportCanvas}
-        connectedUsers={connectedUsers}
-        roomId={roomId}
-        initialRoomId={initialRoomId}
-      />
-      <Canvas
-        canvasRef={canvasRef}
-        overlayCanvasRef={overlayCanvasRef}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-      />
+      {!(joined ) ? (
+        <JoinRoom  onJoin={setRoomData} />
+      ) : (
+        <>
+          <ToolBar
+            color={color}
+            setColor={setColor}
+            penSize={penSize}
+            setPenSize={setPenSize}
+            isEraser={isEraser}
+            setIsEraser={setIsEraser}
+            tool={tool}
+            setTool={setTool}
+            onClearCanvas={clearCanvas}
+            onExportCanvas={exportCanvas}
+            connectedUsers={connectedUsers}
+            roomId={roomId}
+            isIndividualMode={isIndividualMode}
+          />
+          <Canvas
+            canvasRef={canvasRef}
+            overlayCanvasRef={overlayCanvasRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+          />
+        </>
+      )}
     </div>
   );
 };

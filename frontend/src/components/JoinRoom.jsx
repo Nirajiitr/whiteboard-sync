@@ -12,7 +12,7 @@ import {
   Shield,
 } from "lucide-react";
 
-const JoinRoom = ({ onJoin, setIsGroupCreateOpen }) => {
+const JoinRoom = ({ onJoin}) => {
   const [activeTab, setActiveTab] = useState("join");
   const [roomInput, setRoomInput] = useState("");
   const [userName, setUserName] = useState("");
@@ -33,7 +33,7 @@ const JoinRoom = ({ onJoin, setIsGroupCreateOpen }) => {
     if (roomInput.trim() && userName.trim()) {
       onJoin({
         type: "join",
-        roomId,
+        roomId: roomInput,
         userName,
       });
     }
@@ -77,14 +77,9 @@ const JoinRoom = ({ onJoin, setIsGroupCreateOpen }) => {
     <div className="fixed inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
         <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 text-white">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-center items-center">
             <h2 className="text-2xl font-bold">Collaborative Whiteboard</h2>
-            <button
-              onClick={() => setIsGroupCreateOpen(false)}
-              className="p-2 hover:bg-white/20 rounded-full transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+           
           </div>
 
           <div className="flex mt-4 bg-white/10 rounded-xl p-1">
@@ -124,7 +119,7 @@ const JoinRoom = ({ onJoin, setIsGroupCreateOpen }) => {
                   value={roomInput}
                   onChange={(e) => setRoomInput(e.target.value)}
                   type="text"
-                  placeholder="Enter room ID (e.g., room-abc123 or My Meeting Room)"
+                  placeholder="Enter room ID (e.g., room-abc123)"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-200"
                   autoFocus
                 />

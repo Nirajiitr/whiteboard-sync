@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import socket from "../../socket";
 import { drawLine, drawShape } from "./drawingUtils";
 
@@ -9,19 +9,22 @@ const useWhiteboard = (canvasRef, overlayCanvasRef) => {
   const [tool, setTool] = useState("pen");
   const [isDrawing, setIsDrawing] = useState(false);
   const [prevPoint, setPrevPoint] = useState(null);
-  const [roomId, setRoomId] = useState("");
+  const [roomData, setRoomData] = useState(null);
   const [joined, setJoined] = useState(false);
   const [connectedUsers, setConnectedUsers] = useState(1);
   const [startPoint, setStartPoint] = useState(null);
+  const [userList, setUserList] = useState([]);
+
   const param = new URLSearchParams(window.location.search);
-  const initialRoomId = param.get("Id") || "";
+  const initialRoomId = param.get("Id") || null;
+  const isIndividualMode = initialRoomId?.startsWith("solo-");
+
   useEffect(() => {
-    if (initialRoomId) {
-      setRoomId(initialRoomId);
-    }
-  }, [initialRoomId]);
+    if (isIndividualMode) setJoined(true);
+  }, []);
+
   useEffect(() => {
-    if (!joined) return;
+    if (!(joined || isIndividualMode)) return;
 
     const canvas = canvasRef.current;
     const overlayCanvas = overlayCanvasRef.current;
@@ -32,67 +35,73 @@ const useWhiteboard = (canvasRef, overlayCanvasRef) => {
 
     ctx.lineCap = overlayCtx.lineCap = "round";
     ctx.lineJoin = overlayCtx.lineJoin = "round";
-  }, [joined]);
+  }, [joined, isIndividualMode]);
 
   useEffect(() => {
-    if (!joined) return;
+    if (!(joined || isIndividualMode)) return;
 
     const canvas = canvasRef.current;
     const overlayCanvas = overlayCanvasRef.current;
+    if (!canvas || !overlayCanvas) return;
 
     const resize = () => {
       const rect = canvas.parentElement.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
-      overlayCanvas.width = rect.width;
-      overlayCanvas.height = rect.height;
+      canvas.width = overlayCanvas.width = rect.width;
+      canvas.height = overlayCanvas.height = rect.height;
     };
 
     resize();
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
-  }, [joined]);
+  }, [joined, isIndividualMode]);
 
   useEffect(() => {
-    if (!roomId) return;
+    if (isIndividualMode || !roomData) return;
 
-    socket.emit("joinRoom", roomId, (response) => {
-      if (response.success) {
-        setJoined(true);
-      } else {
-        
-        setJoined(false);
-      }
-    });
+    const { type, ...payload } = roomData;
+
+    if (type === "create") {
+      socket.emit("createRoom", payload, (res) => {
+        setJoined(res.success);
+      });
+    } else if (type === "join") {
+      socket.emit("joinRoom", payload, (res) => {
+        setJoined(res.success);
+      });
+    }
 
     socket.on("userCount", (data) => setConnectedUsers(data.count));
+    socket.on("userList", (users) => setUserList(users));
 
     return () => {
-      socket.emit("leaveRoom", roomId);
+      socket.emit("leaveRoom", payload.roomId);
       socket.off("userCount");
+      socket.off("userList");
       setJoined(false);
-      setRoomId("");
     };
-  }, [roomId]);
+  }, [roomData, isIndividualMode]);
 
   useEffect(() => {
-    socket.on("connect", () => console.log("Connected to server"));
+    if (isIndividualMode) return;
+
+    socket.on("connect", () => console.log("✅ Connected to server"));
 
     socket.on("drawing", ({ from, to, color, penSize, isEraser }) => {
       if (!from || !to) return;
-      const ctx = canvasRef.current.getContext("2d");
+      const ctx = canvasRef.current?.getContext("2d");
       drawLine(ctx, from, to, color, penSize, isEraser);
     });
 
     socket.on("shape", ({ start, end, color, penSize, tool }) => {
       if (!start || !end) return;
-      const ctx = canvasRef.current.getContext("2d");
+      const ctx = canvasRef.current?.getContext("2d");
       drawShape(ctx, start, end, tool, color, penSize);
     });
 
     socket.on("clear", () => {
-      const ctx = canvasRef.current.getContext("2d");
-      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      const ctx = canvasRef.current?.getContext("2d");
+      if (ctx)
+        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
     });
 
     return () => {
@@ -100,7 +109,7 @@ const useWhiteboard = (canvasRef, overlayCanvasRef) => {
       socket.off("shape");
       socket.off("clear");
     };
-  }, []);
+  }, [isIndividualMode]);
 
   const handleMouseDown = (e) => {
     const rect = e.target.getBoundingClientRect();
@@ -109,11 +118,10 @@ const useWhiteboard = (canvasRef, overlayCanvasRef) => {
     setStartPoint(point);
 
     if (tool === "pen" || tool === "eraser") {
-      const ctx = canvasRef.current.getContext("2d");
+      const ctx = canvasRef.current?.getContext("2d");
+      if (!ctx) return;
       ctx.save();
-      ctx.globalCompositeOperation = isEraser
-        ? "destination-out"
-        : "source-over";
+      ctx.globalCompositeOperation = isEraser ? "destination-out" : "source-over";
       ctx.strokeStyle = color;
       ctx.lineWidth = isEraser ? penSize * 2 : penSize;
       ctx.beginPath();
@@ -129,29 +137,31 @@ const useWhiteboard = (canvasRef, overlayCanvasRef) => {
     const point = { x: e.clientX - rect.left, y: e.clientY - rect.top };
 
     if (tool === "pen" || tool === "eraser") {
-      if (prevPoint) {
-        const ctx = canvasRef.current.getContext("2d");
+      const ctx = canvasRef.current?.getContext("2d");
+      if (prevPoint && ctx) {
         drawLine(ctx, prevPoint, point, color, penSize, isEraser);
-        socket.emit("drawing", {
-          roomId,
-          from: prevPoint,
-          to: point,
-          color,
-          penSize,
-          isEraser,
-        });
+        if (!isIndividualMode) {
+          socket.emit("drawing", {
+            roomId: roomData.roomId,
+            from: prevPoint,
+            to: point,
+            color,
+            penSize,
+            isEraser,
+          });
+        }
         setPrevPoint(point);
       }
     } else {
-      const overlayCtx = overlayCanvasRef.current.getContext("2d");
+      const overlayCtx = overlayCanvasRef.current?.getContext("2d");
+      if (!overlayCtx || !startPoint) return;
       overlayCtx.clearRect(
         0,
         0,
         overlayCanvasRef.current.width,
         overlayCanvasRef.current.height
       );
-      if (startPoint)
-        drawShape(overlayCtx, startPoint, point, tool, color, penSize);
+      drawShape(overlayCtx, startPoint, point, tool, color, penSize);
     }
   };
 
@@ -164,62 +174,72 @@ const useWhiteboard = (canvasRef, overlayCanvasRef) => {
       const rect = e.target.getBoundingClientRect();
       const endPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
 
-      const ctx = canvasRef.current.getContext("2d");
+      const ctx = canvasRef.current?.getContext("2d");
+      if (!ctx) return;
+
       drawShape(ctx, startPoint, endPoint, tool, color, penSize);
 
       overlayCanvasRef.current
-        .getContext("2d")
-        .clearRect(
+        ?.getContext("2d")
+        ?.clearRect(
           0,
           0,
           overlayCanvasRef.current.width,
           overlayCanvasRef.current.height
         );
 
-      socket.emit("shape", {
-        roomId,
-        start: startPoint,
-        end: endPoint,
-        color,
-        penSize,
-        tool,
-      });
+      if (!isIndividualMode) {
+        socket.emit("shape", {
+          roomId: roomData.roomId,
+          start: startPoint,
+          end: endPoint,
+          color,
+          penSize,
+          tool,
+        });
+      }
     }
 
     setStartPoint(null);
   };
 
-  const clearCanvas = () => {
-    const ctx = canvasRef.current.getContext("2d");
-    const overlayCtx = overlayCanvasRef.current.getContext("2d");
+  const clearCanvas = useCallback(() => {
+    const ctx = canvasRef.current?.getContext("2d");
+    const overlayCtx = overlayCanvasRef.current?.getContext("2d");
 
-    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    overlayCtx.clearRect(
+    ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    overlayCtx?.clearRect(
       0,
       0,
       overlayCanvasRef.current.width,
       overlayCanvasRef.current.height
     );
 
-    if (roomId) socket.emit("clear", roomId);
-  };
+    if (!isIndividualMode && roomData?.roomId) {
+      socket.emit("clear", roomData.roomId);
+    }
+  }, [canvasRef, overlayCanvasRef, isIndividualMode, roomData?.roomId]);
 
-  const exportCanvas = () => {
+  const exportCanvas = useCallback(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const tempCanvas = document.createElement("canvas");
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
 
     const ctx = tempCanvas.getContext("2d");
+    if (!ctx) return;
+
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
     ctx.drawImage(canvas, 0, 0);
 
     const link = document.createElement("a");
-    link.download = `whiteboard-${roomId || "untitled"}.png`;
+    link.download = `whiteboard-${roomData?.roomId || "untitled"}.png`;
     link.href = tempCanvas.toDataURL("image/png");
     link.click();
-  };
+  }, [canvasRef, roomData?.roomId]);
 
   return {
     color,
@@ -233,12 +253,14 @@ const useWhiteboard = (canvasRef, overlayCanvasRef) => {
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
-    initialRoomId,
+    isIndividualMode,
     clearCanvas,
     exportCanvas,
-    roomId,
+    roomId: roomData?.roomId,
     joined,
+    setRoomData,
     connectedUsers,
+    userList,
   };
 };
 

@@ -24,7 +24,7 @@ const ToolBar = ({
   onClearCanvas,
   onExportCanvas,
   connectedUsers,
-  initialRoomId,
+  isIndividualMode,
 }) => {
   const tools = [
     { id: "pen", icon: Pencil, label: "Pen" },
@@ -148,7 +148,7 @@ const ToolBar = ({
           </div>
         </div>
 
-        {!initialRoomId && (
+        {!isIndividualMode && (
           <div className="flex items-center gap-2 xl:ml-auto">
             <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg">
               <Users size={16} className="text-green-600" />
